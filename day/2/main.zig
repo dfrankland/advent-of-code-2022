@@ -4,25 +4,25 @@ const Zigstr = @import("zigstr");
 
 const input = @embedFile("./input");
 
-const GameStateTag = enum(u2) {
-    theirTurn,
-    waiting,
-    ourTurn,
-    finished,
+const StrategyGuideRowParserStateTag = enum(u2) {
+    theirInput,
+    spaceDelimiter,
+    expectedOutcomeInput,
+    newLineDelimiter,
 };
 
-const GameState = union(GameStateTag) {
-    theirTurn: GameStateTheirTurn,
-    waiting: GameStateWaiting,
-    ourTurn: GameStateOurTurn,
-    finished: GameStateFinished,
+const StrategyGuideRowParserState = union(StrategyGuideRowParserStateTag) {
+    theirInput: StrategyGuideRowParserStateTheirInput,
+    spaceDelimiter: StrategyGuideRowParserStateSpaceDelimiter,
+    expectedOutcomeInput: StrategyGuideRowParserStateExpectedOutcomeInput,
+    newLineDelimiter: StrategyGuideRowParserStateFinished,
 
-    pub fn init() GameState {
-        return GameStateTheirTurn.init();
+    pub fn init() StrategyGuideRowParserState {
+        return StrategyGuideRowParserStateTheirInput.init();
     }
 };
 
-const GameStateTheirTurn = struct {
+const StrategyGuideRowParserStateTheirInput = struct {
     pub const TheirShape = enum {
         A,
         B,
@@ -42,47 +42,50 @@ const GameStateTheirTurn = struct {
         }
     };
 
-    pub fn init() GameState {
-        return GameState{
-            .theirTurn = GameStateTheirTurn{},
+    pub fn init() StrategyGuideRowParserState {
+        return StrategyGuideRowParserState{
+            .theirInput = StrategyGuideRowParserStateTheirInput{},
         };
     }
 
-    pub fn theirShapeInput(self: GameStateTheirTurn, grapheme: ziglyph.Grapheme) anyerror!GameState {
+    pub fn theirShapeInput(self: StrategyGuideRowParserStateTheirInput, grapheme: ziglyph.Grapheme) anyerror!StrategyGuideRowParserState {
         _ = self;
-        return GameStateWaiting.init(try TheirShape.parseGrapheme(grapheme));
+        return StrategyGuideRowParserStateSpaceDelimiter.init(try TheirShape.parseGrapheme(grapheme));
     }
 };
 
-const GameStateWaiting = struct {
-    theirShape: GameStateTheirTurn.TheirShape,
+const StrategyGuideRowParserStateSpaceDelimiter = struct {
+    theirShape: StrategyGuideRowParserStateTheirInput.TheirShape,
 
-    pub fn init(theirShape: GameStateTheirTurn.TheirShape) GameState {
-        return GameState{
-            .waiting = GameStateWaiting{
+    pub fn init(theirShape: StrategyGuideRowParserStateTheirInput.TheirShape) StrategyGuideRowParserState {
+        return StrategyGuideRowParserState{
+            .spaceDelimiter = StrategyGuideRowParserStateSpaceDelimiter{
                 .theirShape = theirShape,
             },
         };
     }
 
-    pub fn waitInput(self: GameStateWaiting, grapheme: ziglyph.Grapheme) anyerror!GameState {
+    pub fn spaceDelimiterInput(self: StrategyGuideRowParserStateSpaceDelimiter, grapheme: ziglyph.Grapheme) anyerror!StrategyGuideRowParserState {
         if (grapheme.eql(" ")) {
-            return GameStateOurTurn.init(self.theirShape);
+            return StrategyGuideRowParserStateExpectedOutcomeInput.init(self.theirShape);
         }
         std.debug.print("Expected space character, got {s}", .{grapheme.bytes});
         return error.BadValue;
     }
 };
 
-const GameStateOurTurn = struct {
-    theirShape: GameStateTheirTurn.TheirShape,
+const StrategyGuideRowParserStateExpectedOutcomeInput = struct {
+    theirShape: StrategyGuideRowParserStateTheirInput.TheirShape,
 
-    pub const OurShape = enum(u8) {
-        X = 1,
-        Y = 2,
-        Z = 3,
+    pub const ExpectedOutcome = enum(u8) {
+        // lose
+        X = 0,
+        // draw
+        Y = 3,
+        // win
+        Z = 6,
 
-        pub fn parseGrapheme(grapheme: ziglyph.Grapheme) anyerror!OurShape {
+        pub fn parseGrapheme(grapheme: ziglyph.Grapheme) anyerror!ExpectedOutcome {
             if (grapheme.eql("X")) {
                 return .X;
             } else if (grapheme.eql("Y")) {
@@ -96,67 +99,67 @@ const GameStateOurTurn = struct {
         }
     };
 
-    pub fn init(theirShape: GameStateTheirTurn.TheirShape) GameState {
-        return GameState{
-            .ourTurn = GameStateOurTurn{
+    pub fn init(theirShape: StrategyGuideRowParserStateTheirInput.TheirShape) StrategyGuideRowParserState {
+        return StrategyGuideRowParserState{
+            .expectedOutcomeInput = StrategyGuideRowParserStateExpectedOutcomeInput{
                 .theirShape = theirShape,
             },
         };
     }
 
-    pub fn ourShapeInput(self: GameStateOurTurn, grapheme: ziglyph.Grapheme) anyerror!GameState {
-        return GameStateFinished.init(self.theirShape, try OurShape.parseGrapheme(grapheme));
+    pub fn expectOutcomeInput(self: StrategyGuideRowParserStateExpectedOutcomeInput, grapheme: ziglyph.Grapheme) anyerror!StrategyGuideRowParserState {
+        return StrategyGuideRowParserStateFinished.init(self.theirShape, try ExpectedOutcome.parseGrapheme(grapheme));
     }
 };
 
-const GameStateFinished = struct {
-    theirShape: GameStateTheirTurn.TheirShape,
-    ourShape: GameStateOurTurn.OurShape,
-    outcome: Outcome,
+const StrategyGuideRowParserStateFinished = struct {
+    theirShape: StrategyGuideRowParserStateTheirInput.TheirShape,
+    expectedOutcome: StrategyGuideRowParserStateExpectedOutcomeInput.ExpectedOutcome,
+    ourShape: OurShape,
     roundScore: usize,
 
-    pub const Outcome = enum(u8) {
-        win = 6,
-        draw = 3,
-        loss = 0,
+    pub const OurShape = enum(u8) {
+        rock = 1,
+        paper = 2,
+        scissors = 3,
 
-        pub fn init(theirShape: GameStateTheirTurn.TheirShape, ourShape: GameStateOurTurn.OurShape) Outcome {
+        pub fn init(theirShape: StrategyGuideRowParserStateTheirInput.TheirShape, expectedOutcome: StrategyGuideRowParserStateExpectedOutcomeInput.ExpectedOutcome) OurShape {
             return switch (theirShape) {
-                .A => switch (ourShape) {
-                    .X => .draw,
-                    .Y => .win,
-                    .Z => .loss,
+                .A => switch (expectedOutcome) {
+                    .X => .scissors,
+                    .Y => .rock,
+                    .Z => .paper,
                 },
-                .B => switch (ourShape) {
-                    .X => .loss,
-                    .Y => .draw,
-                    .Z => .win,
+                .B => switch (expectedOutcome) {
+                    .X => .rock,
+                    .Y => .paper,
+                    .Z => .scissors,
                 },
-                .C => switch (ourShape) {
-                    .X => .win,
-                    .Y => .loss,
-                    .Z => .draw,
+                .C => switch (expectedOutcome) {
+                    .X => .paper,
+                    .Y => .scissors,
+                    .Z => .rock,
                 },
             };
         }
     };
 
-    pub fn init(theirShape: GameStateTheirTurn.TheirShape, ourShape: GameStateOurTurn.OurShape) GameState {
-        const outcome = Outcome.init(theirShape, ourShape);
-        return GameState{
-            .finished = GameStateFinished{
+    pub fn init(theirShape: StrategyGuideRowParserStateTheirInput.TheirShape, expectedOutcome: StrategyGuideRowParserStateExpectedOutcomeInput.ExpectedOutcome) StrategyGuideRowParserState {
+        const ourShape = OurShape.init(theirShape, expectedOutcome);
+        return StrategyGuideRowParserState{
+            .newLineDelimiter = StrategyGuideRowParserStateFinished{
                 .theirShape = theirShape,
+                .expectedOutcome = expectedOutcome,
                 .ourShape = ourShape,
-                .outcome = outcome,
-                .roundScore = @enumToInt(ourShape) + @enumToInt(outcome),
+                .roundScore = @enumToInt(expectedOutcome) + @enumToInt(ourShape),
             },
         };
     }
 
-    pub fn nextGameInput(self: GameStateFinished, grapheme: ziglyph.Grapheme) anyerror!GameState {
+    pub fn newLineDelimiterInput(self: StrategyGuideRowParserStateFinished, grapheme: ziglyph.Grapheme) anyerror!StrategyGuideRowParserState {
         _ = self;
         if (grapheme.eql("\n")) {
-            return GameState.init();
+            return StrategyGuideRowParserState.init();
         }
         std.debug.print("Expected \\n, got {s}", .{grapheme.bytes});
         return error.BadValue;
@@ -171,25 +174,25 @@ pub fn main() !void {
     var str = try Zigstr.fromConstBytes(allocator, input);
     defer str.deinit();
 
-    var gameState = GameState.init();
+    var gameState = StrategyGuideRowParserState.init();
 
     var totalScore: usize = 0;
 
     var graphemes = try str.graphemeIter();
     while (graphemes.next()) |grapheme| {
         switch (gameState) {
-            .theirTurn => |theirTurn| {
-                gameState = try theirTurn.theirShapeInput(grapheme);
+            .theirInput => |theirInput| {
+                gameState = try theirInput.theirShapeInput(grapheme);
             },
-            .waiting => |waiting| {
-                gameState = try waiting.waitInput(grapheme);
+            .spaceDelimiter => |spaceDelimiter| {
+                gameState = try spaceDelimiter.spaceDelimiterInput(grapheme);
             },
-            .ourTurn => |ourTurn| {
-                gameState = try ourTurn.ourShapeInput(grapheme);
+            .expectedOutcomeInput => |expectedOutcomeInput| {
+                gameState = try expectedOutcomeInput.expectOutcomeInput(grapheme);
             },
-            .finished => |finished| {
-                totalScore += finished.roundScore;
-                gameState = try finished.nextGameInput(grapheme);
+            .newLineDelimiter => |newLineDelimiter| {
+                totalScore += newLineDelimiter.roundScore;
+                gameState = try newLineDelimiter.newLineDelimiterInput(grapheme);
             },
         }
     }
