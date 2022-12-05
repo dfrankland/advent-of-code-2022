@@ -3,6 +3,7 @@ name: advent-of-code-2022
 license: None
 description:
 root_dependencies:
+  - src: git https://github.com/jecolon/ziglyph
   - src: git https://github.com/jecolon/zigstr
     name: zigstr
     main: src/Zigstr.zig
