@@ -4,6 +4,8 @@ const Zigstr = @import("zigstr");
 
 const input = @embedFile("./input");
 
+const GROUP_SIZE = 3;
+
 const RucksackItem = enum(u8) {
     a = 1,
     b = 2,
@@ -170,6 +172,45 @@ const RucksackItem = enum(u8) {
     }
 };
 
+pub fn NarrowedSet(
+    comptime K: type,
+) type {
+    return struct {
+        const Self = @This();
+
+        allocator: std.mem.Allocator,
+        set: std.AutoHashMap(K, void),
+
+        pub fn init(allocator: std.mem.Allocator) Self {
+            return .{
+                .allocator = allocator,
+                .set = std.AutoHashMap(K, void).init(allocator),
+            };
+        }
+
+        pub fn deinit(self: *Self) void {
+            return self.set.deinit();
+        }
+
+        pub fn expand(self: *Self, keys: []const K) anyerror!void {
+            for (keys) |key| {
+                try self.set.put(key, {});
+            }
+        }
+
+        pub fn narrow(self: *Self, keys: []const K) anyerror!void {
+            var narrowedSet = std.AutoHashMap(K, void).init(self.allocator);
+            for (keys) |key| {
+                if (self.set.contains(key)) {
+                    try narrowedSet.put(key, {});
+                }
+            }
+            self.set.deinit();
+            self.set = narrowedSet;
+        }
+    };
+}
+
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();
@@ -183,30 +224,44 @@ pub fn main() !void {
 
     var sumOfPriorities: usize = 0;
 
+    var badgeNarrowedSet = NarrowedSet(RucksackItem).init(allocator);
+    defer badgeNarrowedSet.deinit();
+
+    var groupIndex: usize = 0;
+
+    var sumOfBadgePriorities: usize = 0;
+
     var graphemes = try str.graphemeIter();
     while (graphemes.next()) |grapheme| {
         if (grapheme.eql("\n")) {
+            groupIndex = (groupIndex % GROUP_SIZE) + 1;
             const half = (items.items.len / 2);
 
-            var firstHalfUnique = std.AutoHashMap(RucksackItem, void).init(allocator);
-            defer firstHalfUnique.deinit();
+            var itemNarrowedSet = NarrowedSet(RucksackItem).init(allocator);
+            defer itemNarrowedSet.deinit();
 
-            for (items.items[0..half]) |item| {
-                try firstHalfUnique.put(item, {});
-            }
+            try itemNarrowedSet.expand(items.items[0..half]);
+            try itemNarrowedSet.narrow(items.items[half..]);
 
-            var secondHalfDuplicatedItems = std.AutoHashMap(RucksackItem, void).init(allocator);
-            defer secondHalfDuplicatedItems.deinit();
-            for (items.items[half..]) |item| {
-                if (firstHalfUnique.contains(item)) {
-                    try secondHalfDuplicatedItems.put(item, {});
-                }
-            }
-
-            var duplicatedItems = secondHalfDuplicatedItems.keyIterator();
+            var duplicatedItems = itemNarrowedSet.set.keyIterator();
             if (duplicatedItems.next()) |item| {
                 sumOfPriorities += @enumToInt(item.*);
             }
+
+            if (groupIndex == 1) {
+                try badgeNarrowedSet.expand(items.items);
+            } else {
+                try badgeNarrowedSet.narrow(items.items);
+            }
+
+            if (groupIndex == GROUP_SIZE) {
+                var duplicatedBadgeItems = badgeNarrowedSet.set.keyIterator();
+                if (duplicatedBadgeItems.next()) |item| {
+                    sumOfBadgePriorities += @enumToInt(item.*);
+                }
+                badgeNarrowedSet.set.clearRetainingCapacity();
+            }
+
             items.clearRetainingCapacity();
         } else {
             const rucksackItem = try RucksackItem.init(grapheme);
@@ -215,4 +270,5 @@ pub fn main() !void {
     }
 
     std.debug.print("Sum of priorities: {}\n", .{sumOfPriorities});
+    std.debug.print("Sum of badge priorities: {}\n", .{sumOfBadgePriorities});
 }
