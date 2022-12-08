@@ -7,19 +7,17 @@ pub const InclusiveRange = struct {
 
     start: usize,
     end: usize,
-    length: usize,
 
     pub fn init(start: usize, end: usize) Self {
         return .{
             .start = start,
             .end = end,
-            .length = end - start + 1,
         };
     }
 
-    pub fn oneContainsTheOther(self: *const Self, other: InclusiveRange) bool {
-        const ordered: [2]InclusiveRange = if (self.length > other.length) .{ self.*, other } else .{ other, self.* };
-        return (ordered[0].start <= ordered[1].start) and (ordered[0].end >= ordered[1].end);
+    pub fn oneOverlapsTheOther(self: *const Self, other: InclusiveRange) bool {
+        const ordered: [2]InclusiveRange = if (self.start < other.start) .{ self.*, other } else .{ other, self.* };
+        return (ordered[0].end >= ordered[1].start);
     }
 };
 

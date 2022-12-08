@@ -13,7 +13,7 @@ pub fn main() !void {
     var str = try Zigstr.fromConstBytes(allocator, input);
     defer str.deinit();
 
-    var inclusiveRangePairsContainingOneAnother: usize = 0;
+    var inclusiveRangePairsOverlappingOneAnother: usize = 0;
 
     var inclusiveRangePairParserState = inclusive_range_pair.InclusiveRangePairParserState.init();
 
@@ -22,8 +22,8 @@ pub fn main() !void {
         inclusiveRangePairParserState = try inclusiveRangePairParserState.parse(allocator, grapheme);
         switch (inclusiveRangePairParserState) {
             .finished => |finished| {
-                if (finished.first.oneContainsTheOther(finished.second)) {
-                    inclusiveRangePairsContainingOneAnother += 1;
+                if (finished.first.oneOverlapsTheOther(finished.second)) {
+                    inclusiveRangePairsOverlappingOneAnother += 1;
                 }
                 inclusiveRangePairParserState = inclusive_range_pair.InclusiveRangePairParserState.init();
             },
@@ -31,5 +31,5 @@ pub fn main() !void {
         }
     }
 
-    std.debug.print("Inclusive range pairs containing one another: {}\n", .{inclusiveRangePairsContainingOneAnother});
+    std.debug.print("Inclusive range pairs containing one another: {}\n", .{inclusiveRangePairsOverlappingOneAnother});
 }
